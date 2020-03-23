@@ -1,4 +1,4 @@
-package com.jason.mylog.utils;
+package com.jason.myblog.utils;
 
 import com.alibaba.fastjson.JSON;
 import lombok.extern.slf4j.Slf4j;
@@ -269,11 +269,8 @@ public class ExcelUtil {
             final Row row = sheet.createRow(rownum + 1);
 
             final Field[] fields = getExportFields(data.getClass());
-            for(int cellnum = 0;cellnum < fields.length;cellnum++){
-                final Field field = fields[cellnum];
-                final Cell cell = row.createCell(cellnum);
-                cell.setCellStyle(style2);
-                setData(field, data, field.getName(), cell,row);
+            for (final Field field : fields) {
+                setData(field, data, field.getName(), style2, row);
             }
             rownum = sheet.getLastRowNum();
         }
@@ -289,29 +286,26 @@ public class ExcelUtil {
      * @param dataField 属性
      * @param object    数据对象
      * @param property  表头的属性映射
-     * @param cell      单元格
+     * @param style     样式
      */
     private static <T> void setData(final Field dataField,
                                     final T object,
                                     final String property,
-                                    final Cell cell,
+                                    final CellStyle style,
                                     final Row row)
             throws IllegalAccessException, NoSuchFieldException {
         //允许访问private属性
         dataField.setAccessible(true);
         //获取属性值
         Object val = dataField.get(object);
-        //获取单元格样式
-        final CellStyle style = cell.getCellStyle();
-        int cellnum = cell.getColumnIndex();
+        int cellnum = row.getLastCellNum() < 0 ? 0 : row.getLastCellNum();
         if (null != val) {
-            dataSet(dataField,val,cell,row,cellnum,style,property);
+            dataSet(dataField,val,row,cellnum,style,property);
         }
     }
 
     private static void dataSet(final Field dataField,
                                 final Object val,
-                                final Cell cell,
                                 final Row row,
                                 int cellnum,
                                 final CellStyle style,
@@ -323,19 +317,25 @@ public class ExcelUtil {
                 || dataField.getType().toString().endsWith(LONG_CONSTANT_SMALL)
                 || dataField.getType().toString().endsWith(DOUBLE_CONSTANT)
                 || dataField.getType().toString().endsWith(DOUBLE_CONSTANT_SMALL)) {
+            final Cell cell = row.createCell(cellnum);
+            cell.setCellStyle(style);
             cell.setCellValue(String.valueOf(val));
         } else if (dataField.getType().toString().endsWith(DATE_CONSTANT)) {
             final DateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+            final Cell cell = row.createCell(cellnum);
+            cell.setCellStyle(style);
             cell.setCellValue(format.format((Date) val));
         } else if (dataField.getType().toString().endsWith(LIST_CONSTANT) || dataField.getType().toString().endsWith(COLLECTION_CONSTANT) || dataField.getType().toString().endsWith(SET_CONSTANT)) {
-            listSet(cellnum,val,row,style,cell);
+            listSet(cellnum,val,row,style);
         } else {
             final String str = ".";
             if (property.contains(str)) {
                 final String p = property.substring(property.indexOf(str) + 1);
                 final Field field = getDataField(val, p);
-                setData(field, val, p, cell,row);
+                setData(field, val, p, style,row);
             } else {
+                final Cell cell = row.createCell(cellnum);
+                cell.setCellStyle(style);
                 cell.setCellValue(val.toString());
             }
         }
@@ -345,18 +345,14 @@ public class ExcelUtil {
     private static <T> void listSet(final int cellnum,
                                     final Object val,
                                     final Row row,
-                                    final CellStyle style,
-                                    final Cell cell) throws NoSuchFieldException, IllegalAccessException {
+                                    final CellStyle style) throws NoSuchFieldException, IllegalAccessException {
         //适用于list平铺模板
-        int listCell = cellnum;
+        int listCell =cellnum;
         final Collection<T> list = (Collection<T>) val;
         for (Object o : list) {
             Field[] listFields = getExportFields(o.getClass());
             for (final Field listField : listFields) {
-                Cell cellList = row.createCell(listCell);
-                cellList.setCellStyle(style);
-                cell.setCellStyle(style);
-                setData(listField, o, listField.getName(), cellList, row);
+                setData(listField, o, listField.getName(), style, row);
                 listCell = listCell + 1;
             }
         }
